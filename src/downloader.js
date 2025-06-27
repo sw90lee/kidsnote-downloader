@@ -187,6 +187,15 @@ const getJson = async (id, session, type, size, index, urltype, win, downloadPat
       return;
     }
 
+    // 첫 번째 호출(index === 1)인 경우 다운로드 시작 로그 출력
+    if (index === 1) {
+      let downloadMessage = `다운로드 시작 - 자녀 ID: ${id}`;
+      if (startDate || endDate) {
+        downloadMessage += ` | 날짜 필터: ${startDate || '제한없음'} ~ ${endDate || '제한없음'}`;
+      }
+      logToWindow(win, downloadMessage);
+    }
+
     if (size === 'all' && parsedData.next !== null) {
       logToWindow(win, '최대 데이터 추출 중...');
       await getJson(id, session, type, size, index + 1, urltype, win, downloadPath, startDate, endDate);
