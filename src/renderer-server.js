@@ -144,33 +144,42 @@ class KidsnoteServerClient {
   }
 
   async handlePathChange() {
+    // 브라우저 환경에서는 폴더 선택 다이얼로그 사용 시도
+    if ('showDirectoryPicker' in window) {
+      try {
+        // File System Access API 사용 (Chrome 86+)
+        const dirHandle = await window.showDirectoryPicker();
+        const path = dirHandle.name;
+        this.downloadPath = `./downloads/${path}`;
+        this.elements.downloadPathInput.value = this.downloadPath;
+        this.updatePathStatus();
+        this.log(`다운로드 경로가 ${this.downloadPath}로 설정되었습니다.`);
+        return;
+      } catch (error) {
+        if (error.name !== 'AbortError') {
+          console.log('File System Access API 사용 실패:', error);
+        }
+      }
+    }
+
+    // 폴백: 서버에서 기본 경로를 가져와서 prompt 사용
     try {
-      // 서버에서 기본 경로를 가져옴
       const response = await fetch('/api/select-download-path');
       const result = await response.json();
       
-      if (result.path) {
-        const userPath = prompt('다운로드 경로를 입력하세요:', result.path);
-        if (userPath) {
-          this.downloadPath = userPath;
-          this.elements.downloadPathInput.value = userPath;
-          this.updatePathStatus();
-          this.log(`다운로드 경로가 ${userPath}로 설정되었습니다.`);
-        }
-      } else {
-        // 기본값으로 폴백
-        const userPath = prompt('다운로드 경로를 입력하세요:', '/tmp/kidsnote-downloads');
-        if (userPath) {
-          this.downloadPath = userPath;
-          this.elements.downloadPathInput.value = userPath;
-          this.updatePathStatus();
-          this.log(`다운로드 경로가 ${userPath}로 설정되었습니다.`);
-        }
+      const defaultPath = result.path || './downloads';
+      const userPath = prompt(`다운로드 경로를 입력하세요:\n\n💡 참고:\n- 서버가 실행되는 머신의 절대 경로를 입력하세요\n- 예시: /home/user/Downloads 또는 C:\\Users\\사용자\\Downloads`, defaultPath);
+      
+      if (userPath) {
+        this.downloadPath = userPath;
+        this.elements.downloadPathInput.value = userPath;
+        this.updatePathStatus();
+        this.log(`다운로드 경로가 ${userPath}로 설정되었습니다.`);
       }
     } catch (error) {
       this.log(`경로 설정 오류: ${error.message}`);
       // 오류 발생시 직접 입력
-      const userPath = prompt('다운로드 경로를 입력하세요:', this.downloadPath || '/tmp/kidsnote-downloads');
+      const userPath = prompt('다운로드 경로를 입력하세요:', this.downloadPath || './downloads');
       if (userPath) {
         this.downloadPath = userPath;
         this.elements.downloadPathInput.value = userPath;
@@ -197,13 +206,13 @@ class KidsnoteServerClient {
       return;
     }
 
-    const selectedChild = document.querySelector('input[name="child"]:checked');
-    if (!selectedChild) {
+    const childrenSelect = document.getElementById('children-select');
+    if (!childrenSelect || !childrenSelect.value) {
       this.log('자녀를 선택해주세요.');
       return;
     }
 
-    const childId = selectedChild.value;
+    const childId = childrenSelect.value;
     const type = this.elements.type.value;
     const urltype = this.elements.urltype.value;
     const startDate = this.elements.startDate.value || null;
@@ -260,35 +269,55 @@ class KidsnoteServerClient {
     const container = document.getElementById('children-list');
     if (!container) return;
 
-    const html = `
-      <label>자녀 선택</label>
-      <div style="margin-top: 10px;">
-        ${this.children.map(child => `
-          <div style="margin-bottom: 10px;">
-            <label style="display: flex; align-items: center; cursor: pointer; padding: 10px; border: 2px solid #e1e5e9; border-radius: 8px; transition: all 0.3s;">
-              <input type="radio" name="child" value="${child.id}" style="margin-right: 10px;">
-              <span style="font-weight: 500;">${child.name}</span>
-            </label>
-          </div>
-        `).join('')}
-      </div>
+    // 콤보박스 스타일로 변경 (Electron과 동일)
+    const select = document.createElement('select');
+    select.id = 'children-select';
+    select.multiple = false;
+    select.size = this.children.length > 5 ? 5 : this.children.length;
+    select.style.cssText = `
+      width: 100%;
+      min-height: 80px;
+      max-height: 150px;
+      padding: 15px;
+      border: 2px solid #e1e5e9;
+      border-radius: 10px;
+      background: #fafbfc;
+      font-size: 16px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-family: inherit;
     `;
-    container.innerHTML = html;
 
-    // 라디오 버튼 스타일링
-    container.querySelectorAll('label').forEach(label => {
-      const radio = label.querySelector('input[type="radio"]');
-      radio.addEventListener('change', () => {
-        container.querySelectorAll('label').forEach(l => {
-          l.style.borderColor = '#e1e5e9';
-          l.style.backgroundColor = 'transparent';
-        });
-        if (radio.checked) {
-          label.style.borderColor = '#667eea';
-          label.style.backgroundColor = 'rgba(102, 126, 234, 0.05)';
-        }
-      });
+    // 포커스 스타일
+    select.addEventListener('focus', () => {
+      select.style.borderColor = '#667eea';
+      select.style.background = 'white';
+      select.style.boxShadow = '0 0 0 3px rgba(102, 126, 234, 0.1)';
     });
+
+    select.addEventListener('blur', () => {
+      select.style.borderColor = '#e1e5e9';
+      select.style.background = '#fafbfc';
+      select.style.boxShadow = 'none';
+    });
+
+    // 옵션 추가
+    this.children.forEach(child => {
+      const option = document.createElement('option');
+      option.value = child.id;
+      option.textContent = child.name;
+      option.style.cssText = `
+        padding: 10px 15px;
+        font-size: 16px;
+        background: white;
+        border: none;
+      `;
+      select.appendChild(option);
+    });
+
+    // 컨테이너 초기화 및 select 추가
+    container.innerHTML = '';
+    container.appendChild(select);
   }
 
   updateStep(activeStep) {
@@ -317,8 +346,48 @@ class KidsnoteServerClient {
     logOutput.scrollTop = logOutput.scrollHeight;
   }
 
-  // 서버 로그 폴링
+  // 서버 로그 실시간 수신 (Server-Sent Events)
   startLogPolling() {
+    try {
+      const eventSource = new EventSource('/api/logs/stream');
+      
+      eventSource.onmessage = (event) => {
+        try {
+          const logEntry = JSON.parse(event.data);
+          const logOutput = this.elements.logOutput;
+          const p = document.createElement('p');
+          const timestamp = new Date(logEntry.timestamp).toLocaleTimeString();
+          p.textContent = `${logEntry.message}`;
+          logOutput.appendChild(p);
+          this.elements.logOutput.scrollTop = this.elements.logOutput.scrollHeight;
+        } catch (error) {
+          console.error('로그 파싱 오류:', error);
+        }
+      };
+
+      eventSource.onerror = (error) => {
+        console.error('SSE 연결 오류:', error);
+        // 연결이 끊어지면 3초 후 재연결 시도
+        setTimeout(() => {
+          if (eventSource.readyState === EventSource.CLOSED) {
+            this.startLogPolling();
+          }
+        }, 3000);
+      };
+
+      // 페이지 언로드시 연결 종료
+      window.addEventListener('beforeunload', () => {
+        eventSource.close();
+      });
+    } catch (error) {
+      console.error('SSE 시작 오류:', error);
+      // SSE를 지원하지 않는 경우 폴백으로 폴링 사용
+      this.startLogPollingFallback();
+    }
+  }
+
+  // 폴백 폴링 방식
+  startLogPollingFallback() {
     let lastLogCount = 0;
     
     setInterval(async () => {
@@ -332,14 +401,14 @@ class KidsnoteServerClient {
             const logOutput = this.elements.logOutput;
             const p = document.createElement('p');
             const timestamp = new Date(logEntry.timestamp).toLocaleTimeString();
-            p.textContent = `[${timestamp}] ${logEntry.message}`;
+            p.textContent = `${logEntry.message}`;
             logOutput.appendChild(p);
           });
           this.elements.logOutput.scrollTop = this.elements.logOutput.scrollHeight;
           lastLogCount = data.logs.length;
         }
       } catch (error) {
-        // 폴링 에러는 무시 (서버가 아직 시작되지 않았을 수 있음)
+        // 폴링 에러는 무시
       }
     }, 1000);
   }

@@ -16,11 +16,22 @@ app.use(express.static(path.join(__dirname)));
 // 서버 전용 로그 함수
 const serverLog = {
   logs: [],
+  clients: new Set(), // SSE 클라이언트들
   add: (message) => {
     const timestamp = new Date().toISOString();
     const logEntry = { timestamp, message };
     serverLog.logs.push(logEntry);
     console.log(`[${timestamp}] ${message}`);
+    
+    // 모든 SSE 클라이언트에게 실시간 전송
+    serverLog.clients.forEach(client => {
+      try {
+        client.write(`data: ${JSON.stringify(logEntry)}\n\n`);
+      } catch (error) {
+        serverLog.clients.delete(client);
+      }
+    });
+    
     // 최대 1000개 로그만 유지
     if (serverLog.logs.length > 1000) {
       serverLog.logs.shift();
@@ -29,6 +40,12 @@ const serverLog = {
   get: () => serverLog.logs,
   clear: () => {
     serverLog.logs = [];
+  },
+  addClient: (client) => {
+    serverLog.clients.add(client);
+  },
+  removeClient: (client) => {
+    serverLog.clients.delete(client);
   }
 };
 
@@ -113,6 +130,30 @@ app.post('/api/download', async (req, res) => {
 // 로그 조회 API
 app.get('/api/logs', (req, res) => {
   res.json({ logs: serverLog.get() });
+});
+
+// Server-Sent Events 엔드포인트
+app.get('/api/logs/stream', (req, res) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Cache-Control'
+  });
+
+  // 클라이언트 추가
+  serverLog.addClient(res);
+  
+  // 기존 로그 전송
+  serverLog.get().forEach(logEntry => {
+    res.write(`data: ${JSON.stringify(logEntry)}\n\n`);
+  });
+
+  // 연결 종료시 클라이언트 제거
+  req.on('close', () => {
+    serverLog.removeClient(res);
+  });
 });
 
 // 로그 초기화 API
