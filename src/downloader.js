@@ -8,9 +8,20 @@ const querystring = require('querystring');
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const renameAsync = promisify(fs.rename);
 
-// Electron 로그 전송
+// 환경 감지
+const isElectron = () => {
+  return typeof process !== 'undefined' && process.versions && process.versions.electron;
+};
+
+// 로그 전송 (서버/Electron 환경 모두 지원)
 const logToWindow = (win, message) => {
-  win.webContents.send('log', message);
+  if (isElectron() && win && win.webContents) {
+    // Electron 환경
+    win.webContents.send('log', message);
+  } else {
+    // 서버 환경 - 콘솔에 출력
+    console.log(`[LOG] ${message}`);
+  }
 };
 
 // 요청 함수

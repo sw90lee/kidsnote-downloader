@@ -657,6 +657,32 @@
         </div>
     </div>
     
-    <script src="renderer.js"></script>
+    <script>
+        // 환경 감지 및 적절한 렌더러 로드
+        function loadRenderer() {
+            const isElectron = typeof window !== 'undefined' && window.electronAPI;
+            
+            if (isElectron) {
+                // Electron 환경
+                const script = document.createElement('script');
+                script.src = 'renderer.js';
+                document.head.appendChild(script);
+                console.log('Electron 환경에서 실행 중');
+            } else {
+                // 서버 환경 (브라우저)
+                const script = document.createElement('script');
+                script.src = 'renderer-server.js';
+                document.head.appendChild(script);
+                console.log('서버 환경에서 실행 중');
+            }
+        }
+        
+        // DOM 로드 후 렌더러 로드
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', loadRenderer);
+        } else {
+            loadRenderer();
+        }
+    </script>
 </body>
 </html>

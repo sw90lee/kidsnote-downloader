@@ -1,5 +1,6 @@
 const express = require('express');
 const path = require('path');
+const os = require('os');
 const cors = require('cors');
 const { login, getJson, getID } = require('./downloader');
 
@@ -118,6 +119,19 @@ app.get('/api/logs', (req, res) => {
 app.delete('/api/logs', (req, res) => {
   serverLog.clear();
   res.json({ success: true, message: '로그가 초기화되었습니다.' });
+});
+
+// 다운로드 경로 선택 API (서버용)
+app.get('/api/select-download-path', (req, res) => {
+  try {
+    // 서버 환경에서는 기본 다운로드 경로 반환
+    const defaultPath = path.join(os.homedir(), 'Downloads');
+    serverLog.add(`기본 다운로드 경로 사용: ${defaultPath}`);
+    res.json({ path: defaultPath });
+  } catch (error) {
+    serverLog.add(`경로 선택 에러: ${error.message}`);
+    res.json({ path: null, error: error.message });
+  }
 });
 
 // 서버 시작

@@ -1,6 +1,12 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
+const os = require('os');
 const { login, getJson, getID, processEntries } = require('./downloader');
+
+// 환경 감지
+const isElectron = () => {
+  return typeof process !== 'undefined' && process.versions && process.versions.electron;
+};
 
 let mainWindow; // 전역 변수로 정의
 
@@ -55,20 +61,29 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle('select-download-path', async (event) => {
-    console.log('IPC select-download-path called'); // IPC 호출 확인
+    console.log('IPC select-download-path called');
     try {
-      const result = await dialog.showOpenDialog(mainWindow, {
-        properties: ['openDirectory']
-      });
+      if (isElectron() && mainWindow) {
+        // Electron 환경에서는 다이얼로그 사용
+        const result = await dialog.showOpenDialog(mainWindow, {
+          properties: ['openDirectory']
+        });
 
-      console.log('Dialog result:', JSON.stringify(result, null, 2));
-      if (!result.canceled && result.filePaths.length > 0) {
-        return result.filePaths[0];
+        console.log('Dialog result:', JSON.stringify(result, null, 2));
+        if (!result.canceled && result.filePaths.length > 0) {
+          return result.filePaths[0];
+        }
+        return null;
+      } else {
+        // 서버 환경에서는 기본 다운로드 경로 반환
+        const defaultPath = path.join(os.homedir(), 'Downloads');
+        console.log('Server environment - using default path:', defaultPath);
+        return defaultPath;
       }
-      return null;
     } catch (error) {
       console.error('Error in select-download-path:', error);
-      throw error;
+      // 오류 발생시 기본 경로 반환
+      return path.join(os.homedir(), 'Downloads');
     }
   });
 });

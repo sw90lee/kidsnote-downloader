@@ -143,12 +143,39 @@ class KidsnoteServerClient {
     }
   }
 
-  handlePathChange() {
-    const path = prompt('다운로드 경로를 입력하세요:', this.downloadPath || '/tmp/kidsnote-downloads');
-    if (path) {
-      this.downloadPath = path;
-      this.elements.downloadPathInput.value = path;
-      this.updatePathStatus();
+  async handlePathChange() {
+    try {
+      // 서버에서 기본 경로를 가져옴
+      const response = await fetch('/api/select-download-path');
+      const result = await response.json();
+      
+      if (result.path) {
+        const userPath = prompt('다운로드 경로를 입력하세요:', result.path);
+        if (userPath) {
+          this.downloadPath = userPath;
+          this.elements.downloadPathInput.value = userPath;
+          this.updatePathStatus();
+          this.log(`다운로드 경로가 ${userPath}로 설정되었습니다.`);
+        }
+      } else {
+        // 기본값으로 폴백
+        const userPath = prompt('다운로드 경로를 입력하세요:', '/tmp/kidsnote-downloads');
+        if (userPath) {
+          this.downloadPath = userPath;
+          this.elements.downloadPathInput.value = userPath;
+          this.updatePathStatus();
+          this.log(`다운로드 경로가 ${userPath}로 설정되었습니다.`);
+        }
+      }
+    } catch (error) {
+      this.log(`경로 설정 오류: ${error.message}`);
+      // 오류 발생시 직접 입력
+      const userPath = prompt('다운로드 경로를 입력하세요:', this.downloadPath || '/tmp/kidsnote-downloads');
+      if (userPath) {
+        this.downloadPath = userPath;
+        this.elements.downloadPathInput.value = userPath;
+        this.updatePathStatus();
+      }
     }
   }
 
