@@ -34,12 +34,21 @@ function main() {
   if (downloadPathInput) downloadPathInput.value = downloadPath;
 
   console.log('✅ 모든 요소 찾기 완료');
-  loginBtn.addEventListener('click', async () => {
-        console.log('Login button clicked');
+  
+  // 로그인 함수를 별도로 분리
+  async function performLogin() {
+    console.log('Login attempted');
     const credentials = {
       id: document.getElementById('username').value,
       password: document.getElementById('password').value
     };
+
+    // 입력값 검증
+    if (!credentials.id.trim() || !credentials.password.trim()) {
+      logOutput.innerHTML += '<p>❌ 아이디와 비밀번호를 모두 입력해주세요.</p>';
+      logOutput.scrollTop = logOutput.scrollHeight;
+      return;
+    }
 
     logOutput.innerHTML += '<p>🔑 로그인을 시도하고 있습니다...</p>';
     logOutput.scrollTop = logOutput.scrollHeight;
@@ -54,6 +63,22 @@ function main() {
     } else {
       logOutput.innerHTML += `<p>❌ 로그인에 실패했습니다: ${result.error}</p>`;
       logOutput.scrollTop = logOutput.scrollHeight;
+    }
+  }
+
+  // 로그인 버튼 클릭 이벤트
+  loginBtn.addEventListener('click', performLogin);
+
+  // Enter 키 이벤트 리스너 추가
+  document.getElementById('username').addEventListener('keypress', (event) => {
+    if (event.key === 'Enter') {
+      performLogin();
+    }
+  });
+
+  document.getElementById('password').addEventListener('keypress', (event) => {
+    if (event.key === 'Enter') {
+      performLogin();
     }
   });
 
