@@ -107,106 +107,94 @@ const isDateInRange = (date, startDate, endDate) => {
 
 // 데이터 처리 함수
 const processEntries = async (parsedData, type, urltype, win, downloadPath, startDate = null, endDate = null) => {
-  const dateProcessed = new Set();
-  let currentProcessingDate = null;
-  let dateItemCount = 0;
+  // 날짜별로 데이터를 그룹화
+  const dateGroups = new Map();
   
+  // 먼저 모든 데이터를 날짜별로 그룹화
   for (const entry of parsedData.results) {
-    let formattedDate, rawDate;
+    let rawDate;
+    
     if (urltype === '1') {
-      const { date_written, class_name, child_name, attached_images, attached_video } = entry;
-      
-      // 날짜 필터링 검사
-      if (!isDateInRange(date_written, startDate, endDate)) {
-        continue;
-      }
-      
-      rawDate = date_written;
-      formattedDate = date_written ? date_written.replace(/-/g, '년') + '일' : 'unknown_date';
-      
-      // 새로운 날짜 처리 시작 로그
-      if (currentProcessingDate !== rawDate) {
-        if (currentProcessingDate && dateItemCount > 0) {
-          logToWindow(win, `📅 ${currentProcessingDate} 날짜의 다운로드가 완료되었습니다. (${dateItemCount}개 항목)`);
-          dateProcessed.add(currentProcessingDate);
-        }
-        currentProcessingDate = rawDate;
-        dateItemCount = 0;
-        if (rawDate) {
-          logToWindow(win, `📅 ${rawDate} 날짜 데이터 처리를 시작합니다...`);
-        }
-      }
-      
-      if ((type === '1' || type === 'all') && Array.isArray(attached_images) && attached_images.length > 0) {
-        dateItemCount += attached_images.length;
-        for (const image of attached_images) {
-          const extension = path.extname(image.original_file_name);
-          const finalFilename = `${formattedDate}-${class_name}-${child_name}-${image.id}${extension}`;
-          logToWindow(win, await processImage(image.original, extension, finalFilename, downloadPath));
-          await sleep(100);
-        }
-      }
-      if ((type === '2' || type === 'all') && attached_video) {
-        dateItemCount += 1;
-        const extension = path.extname(attached_video.original_file_name);
-        const finalFilename = `${formattedDate}-${class_name}-${child_name}-${attached_video.id}${extension}`;
-        logToWindow(win, await processImage(attached_video.high, extension, finalFilename, downloadPath));
-        await sleep(100);
-      }
+      rawDate = entry.date_written;
     } else if (urltype === '2') {
-      const { modified, child_name, attached_images, attached_video } = entry;
-      
-      // 날짜 필터링 검사 (modified에서 날짜 부분만 추출)
-      const modifiedDate = modified ? modified.split('T')[0] : null;
-      if (!isDateInRange(modifiedDate, startDate, endDate)) {
-        continue;
-      }
-      
-      rawDate = modifiedDate;
-      formattedDate = modified ? modified.split('T')[0].replace(/-/g, '년') + '일' : 'unknown_date';
-      
-      // 새로운 날짜 처리 시작 로그
-      if (currentProcessingDate !== rawDate) {
-        if (currentProcessingDate && dateItemCount > 0) {
-          logToWindow(win, `📅 ${currentProcessingDate} 날짜의 다운로드가 완료되었습니다. (${dateItemCount}개 항목)`);
-          dateProcessed.add(currentProcessingDate);
-        }
-        currentProcessingDate = rawDate;
-        dateItemCount = 0;
-        if (rawDate) {
-          logToWindow(win, `📅 ${rawDate} 날짜 데이터 처리를 시작합니다...`);
-        }
-      }
-      
-      if ((type === '1' || type === 'all') && Array.isArray(attached_images) && attached_images.length > 0) {
-        dateItemCount += attached_images.length;
-        for (const image of attached_images) {
-          const extension = path.extname(image.original_file_name);
-          const finalFilename = `${formattedDate}-${child_name}-${image.id}${extension}`;
-          logToWindow(win, await processImage(image.original, extension, finalFilename, downloadPath));
-          await sleep(100);
-        }
-      }
-      if ((type === '2' || type === 'all') && attached_video) {
-        dateItemCount += 1;
-        const extension = path.extname(attached_video.original_file_name);
-        const finalFilename = `${formattedDate}-${child_name}-${attached_video.id}${extension}`;
-        logToWindow(win, await processImage(attached_video.high, extension, finalFilename, downloadPath));
-        await sleep(100);
-      }
+      rawDate = entry.modified ? entry.modified.split('T')[0] : null;
     }
+    
+    // 날짜 필터링 검사
+    if (!isDateInRange(rawDate, startDate, endDate)) {
+      continue;
+    }
+    
+    if (!rawDate) continue;
+    
+    if (!dateGroups.has(rawDate)) {
+      dateGroups.set(rawDate, []);
+    }
+    dateGroups.get(rawDate).push(entry);
   }
   
-  // 마지막 날짜 처리 완료 로그
-  if (currentProcessingDate && dateItemCount > 0) {
-    logToWindow(win, `📅 ${currentProcessingDate} 날짜의 다운로드가 완료되었습니다. (${dateItemCount}개 항목)`);
-    dateProcessed.add(currentProcessingDate);
+  // 날짜순으로 정렬하여 처리
+  const sortedDates = Array.from(dateGroups.keys()).sort();
+  
+  for (const date of sortedDates) {
+    const entries = dateGroups.get(date);
+    logToWindow(win, `📅 ${date} 날짜 데이터 처리를 시작합니다...`);
+    
+    let dateItemCount = 0;
+    
+    for (const entry of entries) {
+      let formattedDate;
+      
+      if (urltype === '1') {
+        const { date_written, class_name, child_name, attached_images, attached_video } = entry;
+        formattedDate = date_written ? date_written.replace(/-/g, '년') + '일' : 'unknown_date';
+        
+        if ((type === '1' || type === 'all') && Array.isArray(attached_images) && attached_images.length > 0) {
+          dateItemCount += attached_images.length;
+          for (const image of attached_images) {
+            const extension = path.extname(image.original_file_name);
+            const finalFilename = `${formattedDate}-${class_name}-${child_name}-${image.id}${extension}`;
+            logToWindow(win, await processImage(image.original, extension, finalFilename, downloadPath));
+            await sleep(100);
+          }
+        }
+        if ((type === '2' || type === 'all') && attached_video) {
+          dateItemCount += 1;
+          const extension = path.extname(attached_video.original_file_name);
+          const finalFilename = `${formattedDate}-${class_name}-${child_name}-${attached_video.id}${extension}`;
+          logToWindow(win, await processImage(attached_video.high, extension, finalFilename, downloadPath));
+          await sleep(100);
+        }
+      } else if (urltype === '2') {
+        const { modified, child_name, attached_images, attached_video } = entry;
+        formattedDate = modified ? modified.split('T')[0].replace(/-/g, '년') + '일' : 'unknown_date';
+        
+        if ((type === '1' || type === 'all') && Array.isArray(attached_images) && attached_images.length > 0) {
+          dateItemCount += attached_images.length;
+          for (const image of attached_images) {
+            const extension = path.extname(image.original_file_name);
+            const finalFilename = `${formattedDate}-${child_name}-${image.id}${extension}`;
+            logToWindow(win, await processImage(image.original, extension, finalFilename, downloadPath));
+            await sleep(100);
+          }
+        }
+        if ((type === '2' || type === 'all') && attached_video) {
+          dateItemCount += 1;
+          const extension = path.extname(attached_video.original_file_name);
+          const finalFilename = `${formattedDate}-${child_name}-${attached_video.id}${extension}`;
+          logToWindow(win, await processImage(attached_video.high, extension, finalFilename, downloadPath));
+          await sleep(100);
+        }
+      }
+    }
+    
+    logToWindow(win, `📅 ${date} 날짜의 다운로드가 완료되었습니다. (${dateItemCount}개 항목)`);
   }
   
   // 전체 처리된 날짜 요약
-  if (dateProcessed.size > 0) {
-    logToWindow(win, `✅ 총 ${dateProcessed.size}개 날짜의 데이터 처리가 완료되었습니다.`);
-    logToWindow(win, `📊 처리된 날짜: ${Array.from(dateProcessed).sort().join(', ')}`);
+  if (sortedDates.length > 0) {
+    logToWindow(win, `✅ 총 ${sortedDates.length}개 날짜의 데이터 처리가 완료되었습니다.`);
+    logToWindow(win, `📊 처리된 날짜: ${sortedDates.join(', ')}`);
   }
 };
 
