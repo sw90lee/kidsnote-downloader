@@ -41,11 +41,19 @@ function main() {
       password: document.getElementById('password').value
     };
 
+    logOutput.innerHTML += '<p>🔑 로그인을 시도하고 있습니다...</p>';
+    logOutput.scrollTop = logOutput.scrollHeight;
+
     const result = await window.electronAPI.login(credentials);
     if (result.success) {
       sessionID = result.result.sessionID;
+      logOutput.innerHTML += '<p>✅ 로그인에 성공했습니다!</p>';
+      logOutput.scrollTop = logOutput.scrollHeight;
       document.getElementById('login-form').classList.add('hidden');
       document.getElementById('options-form').classList.remove('hidden');
+    } else {
+      logOutput.innerHTML += `<p>❌ 로그인에 실패했습니다: ${result.error}</p>`;
+      logOutput.scrollTop = logOutput.scrollHeight;
     }
   });
 
@@ -149,8 +157,8 @@ function main() {
   }
 
   function removeInvalidCharacters(str) {
-    str = str.replace(/[^\x00-\x7F]/g, '');
-    return str;
+    // 파일 시스템에서 금지된 문자만 제거하고 한글 등 유니코드 문자는 보존
+    return str.replace(/[<>:"/\\|?*]/g, '');
   }
 
 
@@ -209,6 +217,10 @@ function main() {
         logOutput.scrollTop = logOutput.scrollHeight;
       }
     }
+    
+    // 전체 다운로드 완료 메시지
+    logOutput.innerHTML += '<p>🎉 모든 다운로드가 완료되었습니다!</p>';
+    logOutput.scrollTop = logOutput.scrollHeight;
   });
 
   window.electronAPI.onLog((message) => {

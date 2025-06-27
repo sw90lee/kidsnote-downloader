@@ -189,6 +189,7 @@ const processEntries = async (parsedData, type, urltype, win, downloadPath, star
     }
     
     logToWindow(win, `📅 ${date} 날짜의 다운로드가 완료되었습니다. (${dateItemCount}개 항목)`);
+    
   }
   
   // 전체 처리된 날짜 요약
