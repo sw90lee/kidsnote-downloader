@@ -77,7 +77,7 @@ const processImage = async (url, extension, finalFilename, downloadPath, retries
     const tempFilename = await downloadImage(url, extension, downloadPath);
     const finalPath = path.join(downloadPath, finalFilename);
     await renameAsync(tempFilename, finalPath);
-    return `Renamed ${tempFilename} to ${finalFilename}`;
+    // 로그 출력하지 않고 조용히 처리
   } catch (error) {
     if (retries > 0) {
       await sleep(5000);
@@ -154,7 +154,7 @@ const processEntries = async (parsedData, type, urltype, win, downloadPath, star
           for (const image of attached_images) {
             const extension = path.extname(image.original_file_name);
             const finalFilename = `${formattedDate}-${class_name}-${child_name}-${image.id}${extension}`;
-            logToWindow(win, await processImage(image.original, extension, finalFilename, downloadPath));
+            await processImage(image.original, extension, finalFilename, downloadPath);
             await sleep(100);
           }
         }
@@ -162,7 +162,7 @@ const processEntries = async (parsedData, type, urltype, win, downloadPath, star
           dateItemCount += 1;
           const extension = path.extname(attached_video.original_file_name);
           const finalFilename = `${formattedDate}-${class_name}-${child_name}-${attached_video.id}${extension}`;
-          logToWindow(win, await processImage(attached_video.high, extension, finalFilename, downloadPath));
+          await processImage(attached_video.high, extension, finalFilename, downloadPath);
           await sleep(100);
         }
       } else if (urltype === '2') {
@@ -174,7 +174,7 @@ const processEntries = async (parsedData, type, urltype, win, downloadPath, star
           for (const image of attached_images) {
             const extension = path.extname(image.original_file_name);
             const finalFilename = `${formattedDate}-${child_name}-${image.id}${extension}`;
-            logToWindow(win, await processImage(image.original, extension, finalFilename, downloadPath));
+            await processImage(image.original, extension, finalFilename, downloadPath);
             await sleep(100);
           }
         }
@@ -182,7 +182,7 @@ const processEntries = async (parsedData, type, urltype, win, downloadPath, star
           dateItemCount += 1;
           const extension = path.extname(attached_video.original_file_name);
           const finalFilename = `${formattedDate}-${child_name}-${attached_video.id}${extension}`;
-          logToWindow(win, await processImage(attached_video.high, extension, finalFilename, downloadPath));
+          await processImage(attached_video.high, extension, finalFilename, downloadPath);
           await sleep(100);
         }
       }

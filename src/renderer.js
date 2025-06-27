@@ -135,9 +135,9 @@ function main() {
       console.log('Selected path:', newPath);
       if (newPath) {
         downloadPath = newPath;
-        downloadPathInput.value = removeInvalidCharacters(downloadPath);
-        console.log('downloadPath updated to:', removeInvalidCharacters(downloadPath));
-        logOutput.innerHTML += `<p>다운로드 경로가 ${removeInvalidCharacters(downloadPath)}로 설정되었습니다.</p>`;
+        downloadPathInput.value = downloadPath;
+        console.log('downloadPath updated to:', downloadPath);
+        logOutput.innerHTML += `<p>다운로드 경로가 ${downloadPath}로 설정되었습니다.</p>`;
         if (pathStatus) {
           pathStatus.textContent = '경로 설정됨';
           pathStatus.classList.remove('unset');
@@ -156,8 +156,10 @@ function main() {
     }
   }
 
-  function removeInvalidCharacters(str) {
-    // 파일 시스템에서 금지된 문자만 제거하고 한글 등 유니코드 문자는 보존
+  // 파일명 정리용 함수 (현재 미사용, 필요시 사용)
+  function removeInvalidFilenameCharacters(str) {
+    // 파일명에서 Windows 파일 시스템 금지 문자만 제거 (경로에는 사용 안함)
+    // 한글 등 유니코드 문자는 보존, 경로 구분자(: /)는 파일명에서만 제거
     return str.replace(/[<>:"/\\|?*]/g, '');
   }
 
