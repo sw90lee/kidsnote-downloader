@@ -2,6 +2,8 @@ const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const { login, getJson, getID, processEntries } = require('./downloader');
 
+let mainWindow; // 전역 변수로 정의
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 800,
@@ -14,15 +16,15 @@ function createWindow() {
     }
   });
 
-  win.loadFile('index.html');
-  //win.webContents.openDevTools();
+  // 수정된 부분: win.loadFile로 변경
+  win.loadFile(path.join(__dirname, 'index.html'));
+  win.webContents.openDevTools();
+  
   return win;
 }
 
-let mainWindow; // 전역 변수로 정의
-
 app.whenReady().then(() => {
-  mainWindow = createWindow();
+  mainWindow = createWindow(); // createWindow()가 반환하는 win을 mainWindow에 할당
 
   ipcMain.handle('login', async (event, { id, password }) => {
     try {
@@ -57,7 +59,8 @@ app.whenReady().then(() => {
       const result = await dialog.showOpenDialog(mainWindow, {
         properties: ['openDirectory']
       });
-     console.log('Dialog result:', JSON.stringify(result, null, 2));
+
+      console.log('Dialog result:', JSON.stringify(result, null, 2));
       if (!result.canceled && result.filePaths.length > 0) {
         return result.filePaths[0];
       }
@@ -72,4 +75,3 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
-

@@ -2,6 +2,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   console.log('DOM fully loaded');
 
+  if (window.electronAPI) {
+    console.log('electronAPI is available:', Object.keys(window.electronAPI));
+  } else {
+    console.error('electronAPI is not available!');
+  }
   if (!window.os || !window.os.homedir) console.log('Error: window.os or window.os.homedir is not defined');
   if (!window.path || !window.path.join) console.log('Error: window.path or window.path.join is not defined');
 
@@ -12,7 +17,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const pathStatus = document.getElementById('path-status');
   const changePathBtn = document.getElementById('change-path-btn');
   let sessionID;
-
+  let downloadPath = '';
+  
   try {
     downloadPath = window.path.join(window.os.homedir(), 'Downloads');
     console.log('Initial downloadPath set to:', downloadPath);
@@ -29,7 +35,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const downloadPathInput = document.getElementById('download-path');
   if (downloadPathInput) downloadPathInput.value = downloadPath;
 
+  console.log('✅ 모든 요소 찾기 완료');
   loginBtn.addEventListener('click', async () => {
+        console.log('Login button clicked');
     const credentials = {
       id: document.getElementById('username').value,
       password: document.getElementById('password').value
@@ -42,6 +50,8 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('options-form').classList.remove('hidden');
     }
   });
+
+  
 
   nextBtn.addEventListener('click', async () => {
     const params = {

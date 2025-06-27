@@ -118,7 +118,7 @@ const processEntries = async (parsedData, type, urltype, win, downloadPath, star
       }
       
       formattedDate = date_written ? date_written.replace(/-/g, '년') + '일' : 'unknown_date';
-      if ((type === '1' || type === 'all') && attached_images?.length > 0) {
+      if ((type === '1' || type === 'all') && Array.isArray(attached_images) && attached_images.length > 0) {
         for (const image of attached_images) {
           const extension = path.extname(image.original_file_name);
           const finalFilename = `${formattedDate}-${class_name}-${child_name}-${image.id}${extension}`;
@@ -142,7 +142,7 @@ const processEntries = async (parsedData, type, urltype, win, downloadPath, star
       }
       
       formattedDate = modified ? modified.split('T')[0].replace(/-/g, '년') + '일' : 'unknown_date';
-      if ((type === '1' || type === 'all') && attached_images?.length > 0) {
+      if ((type === '1' || type === 'all') && Array.isArray(attached_images) && attached_images.length > 0) {
         for (const image of attached_images) {
           const extension = path.extname(image.original_file_name);
           const finalFilename = `${formattedDate}-${child_name}-${image.id}${extension}`;
@@ -201,6 +201,7 @@ const getJson = async (id, session, type, size, index, urltype, win, downloadPat
 
 // 로그인 함수
 const login = async (id, password, win) => {
+console.log(`Logging in with ID: ${id}`); // 로그인 시도 로그
   const postData = querystring.stringify({ username: id, password });
   const options = {
     hostname: 'www.kidsnote.com',
