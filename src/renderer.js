@@ -1,8 +1,6 @@
-document.addEventListener('DOMContentLoaded', () => {
-
-  console.log('DOM fully loaded');
-
-  if (window.electronAPI) {
+function main() {
+   console.log("✅ main() 실행: DOM이 준비됐거나 이미 준비됨");
+   if (window.electronAPI) {
     console.log('electronAPI is available:', Object.keys(window.electronAPI));
   } else {
     console.error('electronAPI is not available!');
@@ -219,5 +217,11 @@ document.addEventListener('DOMContentLoaded', () => {
     logOutput.appendChild(logEntry);
     logOutput.scrollTop = logOutput.scrollHeight;
   });
-});
+}
 
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', main);
+} else {
+  main(); // 이미 DOMContentLoaded가 발생한 상태일 때 즉시 실행
+}
