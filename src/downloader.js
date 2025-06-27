@@ -24,7 +24,7 @@ const makeRequest = (options, data = null, retries = 5, retryDelay = 5000) => {
 
     req.on('error', async (err) => {
       if (retries > 0 && err.code === 'ECONNRESET') {
-        logToWindow(`Connection reset error occurred. Retrying in ${retryDelay / 1000} seconds... (${retries} retries left)`);
+        console.log(`Connection reset error occurred. Retrying in ${retryDelay / 1000} seconds... (${retries} retries left)`);
         await sleep(retryDelay);
         resolve(await makeRequest(options, data, retries - 1, retryDelay));
       } else {
