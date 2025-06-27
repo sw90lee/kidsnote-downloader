@@ -35,6 +35,25 @@ function main() {
 
   console.log('✅ 모든 요소 찾기 완료');
   
+  // 진행 단계 업데이트 함수
+  function updateStep(activeStep) {
+    [1, 2, 3].forEach(step => {
+      const stepEl = document.getElementById(`step-${step}`);
+      const lineEl = step < 3 ? document.getElementById(`line-${step}`) : null;
+
+      if (step < activeStep) {
+        stepEl.className = 'step completed';
+        if (lineEl) lineEl.className = 'step-line completed';
+      } else if (step === activeStep) {
+        stepEl.className = 'step active';
+        if (lineEl) lineEl.className = 'step-line';
+      } else {
+        stepEl.className = 'step';
+        if (lineEl) lineEl.className = 'step-line';
+      }
+    });
+  }
+  
   // 로그인 함수를 별도로 분리
   async function performLogin() {
     console.log('Login attempted');
@@ -60,6 +79,7 @@ function main() {
       logOutput.scrollTop = logOutput.scrollHeight;
       document.getElementById('login-form').classList.add('hidden');
       document.getElementById('options-form').classList.remove('hidden');
+      updateStep(2); // 2단계로 이동
     } else {
       logOutput.innerHTML += `<p>❌ 로그인에 실패했습니다: ${result.error}</p>`;
       logOutput.scrollTop = logOutput.scrollHeight;
@@ -119,6 +139,7 @@ function main() {
       
       document.getElementById('options-form').classList.add('hidden');
       document.getElementById('children-selection').classList.remove('hidden');
+      updateStep(3); // 3단계로 이동
     }
   });
 
