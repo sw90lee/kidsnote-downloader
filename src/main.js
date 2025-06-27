@@ -42,9 +42,9 @@ app.whenReady().then(() => {
     }
   });
 
-  ipcMain.handle('download', async (event, { id, session, type, size, index, urltype, downloadPath}) => {
+  ipcMain.handle('download', async (event, { id, session, type, size, index, urltype, downloadPath, startDate, endDate}) => {
     try {
-      await getJson(id, session, type, size, index, urltype, mainWindow, downloadPath);
+      await getJson(id, session, type, size, index, urltype, mainWindow, downloadPath, startDate, endDate);
       return { success: true };
     } catch (error) {
       return { success: false, error: error.message };

@@ -165,8 +165,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const size = document.getElementById('size').value;
     const type = document.getElementById('type').value;
     const urltype = document.getElementById('urltype').value;
+    const startDate = document.getElementById('start-date').value;
+    const endDate = document.getElementById('end-date').value;
 
-    logOutput.innerHTML += `<p>다운로드 시작 - 경로: ${downloadPath}</p>`;
+    // 날짜 유효성 검사
+    if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
+      logOutput.innerHTML += '<p>오류: 시작 날짜가 종료 날짜보다 늦습니다.</p>';
+      logOutput.scrollTop = logOutput.scrollHeight;
+      return;
+    }
+
+    let downloadMessage = `다운로드 시작 - 경로: ${downloadPath}`;
+    if (startDate || endDate) {
+      downloadMessage += ` | 날짜 필터: ${startDate || '제한없음'} ~ ${endDate || '제한없음'}`;
+    }
+    logOutput.innerHTML += `<p>${downloadMessage}</p>`;
     logOutput.scrollTop = logOutput.scrollHeight;
 
     for (const childId of selectedChildren) {
@@ -178,7 +191,9 @@ document.addEventListener('DOMContentLoaded', () => {
           size,
           index: 1,
           urltype,
-          downloadPath
+          downloadPath,
+          startDate: startDate || null,
+          endDate: endDate || null
         });
       } catch (error) {
         console.error('Download error for child', childId, ':', error);

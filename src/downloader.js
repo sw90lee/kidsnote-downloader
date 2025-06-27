@@ -87,12 +87,36 @@ const processImage = async (url, extension, finalFilename, downloadPath, retries
   }
 };
 
+// 날짜 필터링 함수
+const isDateInRange = (date, startDate, endDate) => {
+  if (!startDate && !endDate) return true;
+  
+  const entryDate = new Date(date);
+  if (isNaN(entryDate.getTime())) return true;
+  
+  if (startDate && endDate) {
+    return entryDate >= new Date(startDate) && entryDate <= new Date(endDate);
+  } else if (startDate) {
+    return entryDate >= new Date(startDate);
+  } else if (endDate) {
+    return entryDate <= new Date(endDate);
+  }
+  
+  return true;
+};
+
 // 데이터 처리 함수
-const processEntries = async (parsedData, type, urltype, win, downloadPath) => {
+const processEntries = async (parsedData, type, urltype, win, downloadPath, startDate = null, endDate = null) => {
   for (const entry of parsedData.results) {
     let formattedDate;
     if (urltype === '1') {
       const { date_written, class_name, child_name, attached_images, attached_video } = entry;
+      
+      // 날짜 필터링 검사
+      if (!isDateInRange(date_written, startDate, endDate)) {
+        continue;
+      }
+      
       formattedDate = date_written ? date_written.replace(/-/g, '년') + '일' : 'unknown_date';
       if ((type === '1' || type === 'all') && attached_images?.length > 0) {
         for (const image of attached_images) {
@@ -110,6 +134,13 @@ const processEntries = async (parsedData, type, urltype, win, downloadPath) => {
       }
     } else if (urltype === '2') {
       const { modified, child_name, attached_images, attached_video } = entry;
+      
+      // 날짜 필터링 검사 (modified에서 날짜 부분만 추출)
+      const modifiedDate = modified ? modified.split('T')[0] : null;
+      if (!isDateInRange(modifiedDate, startDate, endDate)) {
+        continue;
+      }
+      
       formattedDate = modified ? modified.split('T')[0].replace(/-/g, '년') + '일' : 'unknown_date';
       if ((type === '1' || type === 'all') && attached_images?.length > 0) {
         for (const image of attached_images) {
@@ -130,7 +161,7 @@ const processEntries = async (parsedData, type, urltype, win, downloadPath) => {
 };
 
 // 자녀 데이터 가져오기 함수
-const getJson = async (id, session, type, size, index, urltype, win, downloadPath) => {
+const getJson = async (id, session, type, size, index, urltype, win, downloadPath, startDate = null, endDate = null) => {
   const downloadSize = size === 'all' ? 9999 * index : size;
   const url = `/api/v1_2/children/${id}/${urltype === '1' ? 'reports' : 'albums'}/?page_size=${downloadSize}&tz=Asia%2FSeoul&child=${id}`;
   const options = {
@@ -158,9 +189,9 @@ const getJson = async (id, session, type, size, index, urltype, win, downloadPat
 
     if (size === 'all' && parsedData.next !== null) {
       logToWindow(win, '최대 데이터 추출 중...');
-      await getJson(id, session, type, size, index + 1, urltype, win, downloadPath);
+      await getJson(id, session, type, size, index + 1, urltype, win, downloadPath, startDate, endDate);
     } else {
-      await processEntries(parsedData, type, urltype, win, downloadPath);
+      await processEntries(parsedData, type, urltype, win, downloadPath, startDate, endDate);
       logToWindow(win, '다운로드 완료');
     }
   } catch (err) {
