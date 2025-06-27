@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Kidsnote Downloader</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Kidsnote Downloader</h1>
+
+    <div id="login-form" class="section">
+      <input id="username" type="text" placeholder="아이디">
+      <input id="password" type="password" placeholder="패스워드">
+      <button id="login-btn">로그인</button>
+    </div>
+
+    <div id="options-form" class="section hidden">
+      <select id="type">
+        <option value="1">사진</option>
+        <option value="2">동영상</option>
+        <option value="all" selected>사진 + 동영상</option>
+      </select>
+      <select id="urltype">
+        <option value="1">알림장</option>
+        <option value="2">엘범</option>
+      </select>
+      <button id="next-btn">다음</button>
+    </div>
+
+    <div id="children-selection" class="section hidden">
+      <h2>자녀 선택</h2>
+      <div id="children-list"></div>
+      <h2>다운로드 선택</h2>
+      <div class="download-path">
+        <label>다운로드 경로:</label>
+        <input id="download-path" type="text" readonly>
+        <button id="change-path-btn">경로 변경</button>
+        <span id="path-status" class="path-status"></span>
+      </div>
+      <input id="size" type="text" placeholder="페이지 수 (또는 all)">
+      <button id="download-btn">다운로드</button>
+    </div>
+
+    <div class="log-container">
+      <h3>로그</h3>
+      <div id="log-output"></div>
+    </div>
+  </div>
+  <script src="renderer.js"></script>
+</body>
+</html>
