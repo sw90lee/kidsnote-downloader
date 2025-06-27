@@ -34,18 +34,51 @@ function main() {
   if (downloadPathInput) downloadPathInput.value = downloadPath;
 
   console.log('✅ 모든 요소 찾기 완료');
-  loginBtn.addEventListener('click', async () => {
-        console.log('Login button clicked');
+  
+  // 로그인 함수를 별도로 분리
+  async function performLogin() {
+    console.log('Login attempted');
     const credentials = {
       id: document.getElementById('username').value,
       password: document.getElementById('password').value
     };
 
+    // 입력값 검증
+    if (!credentials.id.trim() || !credentials.password.trim()) {
+      logOutput.innerHTML += '<p>❌ 아이디와 비밀번호를 모두 입력해주세요.</p>';
+      logOutput.scrollTop = logOutput.scrollHeight;
+      return;
+    }
+
+    logOutput.innerHTML += '<p>🔑 로그인을 시도하고 있습니다...</p>';
+    logOutput.scrollTop = logOutput.scrollHeight;
+
     const result = await window.electronAPI.login(credentials);
     if (result.success) {
       sessionID = result.result.sessionID;
+      logOutput.innerHTML += '<p>✅ 로그인에 성공했습니다!</p>';
+      logOutput.scrollTop = logOutput.scrollHeight;
       document.getElementById('login-form').classList.add('hidden');
       document.getElementById('options-form').classList.remove('hidden');
+    } else {
+      logOutput.innerHTML += `<p>❌ 로그인에 실패했습니다: ${result.error}</p>`;
+      logOutput.scrollTop = logOutput.scrollHeight;
+    }
+  }
+
+  // 로그인 버튼 클릭 이벤트
+  loginBtn.addEventListener('click', performLogin);
+
+  // Enter 키 이벤트 리스너 추가
+  document.getElementById('username').addEventListener('keypress', (event) => {
+    if (event.key === 'Enter') {
+      performLogin();
+    }
+  });
+
+  document.getElementById('password').addEventListener('keypress', (event) => {
+    if (event.key === 'Enter') {
+      performLogin();
     }
   });
 
@@ -127,9 +160,9 @@ function main() {
       console.log('Selected path:', newPath);
       if (newPath) {
         downloadPath = newPath;
-        downloadPathInput.value = removeInvalidCharacters(downloadPath);
-        console.log('downloadPath updated to:', removeInvalidCharacters(downloadPath));
-        logOutput.innerHTML += `<p>다운로드 경로가 ${removeInvalidCharacters(downloadPath)}로 설정되었습니다.</p>`;
+        downloadPathInput.value = downloadPath;
+        console.log('downloadPath updated to:', downloadPath);
+        logOutput.innerHTML += `<p>다운로드 경로가 ${downloadPath}로 설정되었습니다.</p>`;
         if (pathStatus) {
           pathStatus.textContent = '경로 설정됨';
           pathStatus.classList.remove('unset');
@@ -148,9 +181,11 @@ function main() {
     }
   }
 
-  function removeInvalidCharacters(str) {
-    str = str.replace(/[^\x00-\x7F]/g, '');
-    return str;
+  // 파일명 정리용 함수 (현재 미사용, 필요시 사용)
+  function removeInvalidFilenameCharacters(str) {
+    // 파일명에서 Windows 파일 시스템 금지 문자만 제거 (경로에는 사용 안함)
+    // 한글 등 유니코드 문자는 보존, 경로 구분자(: /)는 파일명에서만 제거
+    return str.replace(/[<>:"/\\|?*]/g, '');
   }
 
 
@@ -209,6 +244,10 @@ function main() {
         logOutput.scrollTop = logOutput.scrollHeight;
       }
     }
+    
+    // 전체 다운로드 완료 메시지
+    logOutput.innerHTML += '<p>🎉 모든 다운로드가 완료되었습니다!</p>';
+    logOutput.scrollTop = logOutput.scrollHeight;
   });
 
   window.electronAPI.onLog((message) => {
