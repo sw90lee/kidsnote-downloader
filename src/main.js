@@ -18,7 +18,8 @@ function createWindow() {
 
   // 수정된 부분: win.loadFile로 변경
   win.loadFile(path.join(__dirname, 'index.html'));
-  win.webContents.openDevTools();
+  // DevTool 활성화
+  //win.webContents.openDevTools();
   
   return win;
 }
