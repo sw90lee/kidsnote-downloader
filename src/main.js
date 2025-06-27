@@ -7,7 +7,7 @@ let mainWindow; // 전역 변수로 정의
 function createWindow() {
   const win = new BrowserWindow({
     width: 800,
-    height: 600,
+    height: 1200,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false, // Node 모듈 직접 사용 비활성화
@@ -19,7 +19,7 @@ function createWindow() {
   // 수정된 부분: win.loadFile로 변경
   win.loadFile(path.join(__dirname, 'index.html'));
   // DevTool 활성화
-  //win.webContents.openDevTools();
+  win.webContents.openDevTools();
   
   return win;
 }

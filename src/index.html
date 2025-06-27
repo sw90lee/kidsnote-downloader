@@ -582,18 +582,25 @@
     </div>
     
     <script>
-        // 서버 모드와 Electron 모드 자동 감지
+        document.addEventListener('DOMContentLoaded', () => {
+        const script = document.createElement('script');
+
+        // Electron 감지
         if (typeof window !== 'undefined' && window.electronAPI) {
-            // Electron 모드
-            const script = document.createElement('script');
+            console.log('Electron 모드로 실행 중입니다.');
             script.src = 'renderer.js';
-            document.head.appendChild(script);
         } else {
-            // 서버 모드
-            const script = document.createElement('script');
+            console.log('Server 모드로 실행 중입니다.');
             script.src = 'renderer-server.js';
-            document.head.appendChild(script);
         }
+
+        // script 로드되면 확인 로그
+        script.onload = () => console.log(`${script.src} 로드 완료`);
+        script.onerror = (e) => console.error(`${script.src} 로드 실패`, e);
+
+        // 로드
+        document.body.appendChild(script);
+    });
     </script>
 </body>
 </html>

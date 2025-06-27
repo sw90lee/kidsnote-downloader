@@ -322,3 +322,5 @@ class KidsnoteServerClient {
 document.addEventListener('DOMContentLoaded', () => {
   new KidsnoteServerClient();
 });
+
+new KidsnoteServerClient();
