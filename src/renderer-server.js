@@ -29,7 +29,7 @@ class KidsnoteServerClient {
       urltype: document.getElementById('urltype'),
       startDate: document.getElementById('start-date'),
       endDate: document.getElementById('end-date'),
-      size: document.getElementById('size'),
+      downloadAll: document.getElementById('download-all'),
       downloadPathInput: document.getElementById('download-path'),
       pathStatus: document.getElementById('path-status'),
       
@@ -65,6 +65,9 @@ class KidsnoteServerClient {
     
     // 다운로드 경로 입력 감지
     this.elements.downloadPathInput.addEventListener('input', () => this.updatePathStatus());
+    
+    // 전체 다운로드 체크박스 이벤트
+    this.elements.downloadAll.addEventListener('change', () => this.handleDownloadAllChange());
   }
 
   async handleLogin() {
@@ -143,12 +146,51 @@ class KidsnoteServerClient {
     }
   }
 
-  handlePathChange() {
-    const path = prompt('다운로드 경로를 입력하세요:', this.downloadPath || '/tmp/kidsnote-downloads');
-    if (path) {
-      this.downloadPath = path;
-      this.elements.downloadPathInput.value = path;
-      this.updatePathStatus();
+  async handlePathChange() {
+    try {
+      // 먼저 탐색기를 열고 현재 경로를 확인
+      const response = await fetch('/api/open-explorer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          defaultPath: this.downloadPath || null 
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        this.log(`탐색기가 열렸습니다: ${result.path}`);
+        
+        // 탐색기가 열린 후 사용자가 경로를 입력하도록 안내
+        setTimeout(() => {
+          const path = prompt('탐색기에서 원하는 폴더를 확인한 후, 다운로드 경로를 입력하세요:', result.path);
+          if (path) {
+            this.downloadPath = path;
+            this.elements.downloadPathInput.value = path;
+            this.updatePathStatus();
+            this.log(`다운로드 경로가 설정되었습니다: ${path}`);
+          }
+        }, 1000);
+      } else {
+        this.log(`탐색기 열기 실패: ${result.error}`);
+        // 탐색기 열기가 실패한 경우 기존 방식으로 진행
+        const path = prompt('다운로드 경로를 입력하세요:', this.downloadPath || '');
+        if (path) {
+          this.downloadPath = path;
+          this.elements.downloadPathInput.value = path;
+          this.updatePathStatus();
+        }
+      }
+    } catch (error) {
+      this.log(`경로 변경 오류: ${error.message}`);
+      // 오류 발생 시 기존 방식으로 진행
+      const path = prompt('다운로드 경로를 입력하세요:', this.downloadPath || '');
+      if (path) {
+        this.downloadPath = path;
+        this.elements.downloadPathInput.value = path;
+        this.updatePathStatus();
+      }
     }
   }
 
@@ -164,24 +206,50 @@ class KidsnoteServerClient {
     }
   }
 
+  handleDownloadAllChange() {
+    const isChecked = this.elements.downloadAll.checked;
+    
+    if (isChecked) {
+      this.log('전체 다운로드가 선택되었습니다. 날짜 필터가 설정되어 있어도 전체 범위를 다운로드합니다.');
+    } else {
+      this.log('날짜 필터 범위만 다운로드합니다.');
+    }
+  }
+
   async handleDownload() {
     if (!this.downloadPath) {
       this.log('다운로드 경로를 설정해주세요.');
       return;
     }
 
-    const selectedChild = document.querySelector('input[name="child"]:checked');
-    if (!selectedChild) {
+    const selectedChildSelect = document.querySelector('#child-select');
+    if (!selectedChildSelect || !selectedChildSelect.value) {
       this.log('자녀를 선택해주세요.');
       return;
     }
 
-    const childId = selectedChild.value;
+    const childId = selectedChildSelect.value;
     const type = this.elements.type.value;
     const urltype = this.elements.urltype.value;
-    const startDate = this.elements.startDate.value || null;
-    const endDate = this.elements.endDate.value || null;
-    const size = this.elements.size.value.trim() || 'all';
+    const isDownloadAll = this.elements.downloadAll.checked;
+    
+    // 전체 다운로드 체크 시 날짜 필터 무시, 아니면 날짜 필터 적용
+    let startDate, endDate, size;
+    if (isDownloadAll) {
+      startDate = null;
+      endDate = null;
+      size = 'all';
+      this.log('전체 다운로드 모드: 모든 날짜 범위의 모든 콘텐츠를 다운로드합니다.');
+    } else {
+      startDate = this.elements.startDate.value || null;
+      endDate = this.elements.endDate.value || null;
+      size = 'all'; // 날짜 필터 범위 내에서 전체 다운로드
+      if (startDate || endDate) {
+        this.log(`날짜 필터 모드: ${startDate || '시작일 제한없음'} ~ ${endDate || '종료일 제한없음'} 범위를 다운로드합니다.`);
+      } else {
+        this.log('날짜 필터가 설정되지 않아 전체 범위를 다운로드합니다.');
+      }
+    }
 
     this.elements.downloadBtn.disabled = true;
     this.elements.downloadBtn.textContent = '다운로드 중...';
@@ -233,35 +301,40 @@ class KidsnoteServerClient {
     const container = document.getElementById('children-list');
     if (!container) return;
 
+    if (this.children.length === 0) {
+      container.innerHTML = `
+        <div class="children-empty">
+          <span class="emoji">👶</span>
+          자녀 정보를 찾을 수 없습니다.
+        </div>
+      `;
+      return;
+    }
+
     const html = `
-      <label>자녀 선택</label>
-      <div style="margin-top: 10px;">
+      <label for="child-select">자녀 선택</label>
+      <select id="child-select" name="child" style="margin-top: 10px;">
+        <option value="">자녀를 선택하세요</option>
         ${this.children.map(child => `
-          <div style="margin-bottom: 10px;">
-            <label style="display: flex; align-items: center; cursor: pointer; padding: 10px; border: 2px solid #e1e5e9; border-radius: 8px; transition: all 0.3s;">
-              <input type="radio" name="child" value="${child.id}" style="margin-right: 10px;">
-              <span style="font-weight: 500;">${child.name}</span>
-            </label>
-          </div>
+          <option value="${child.id}">${child.name}</option>
         `).join('')}
-      </div>
+      </select>
     `;
     container.innerHTML = html;
 
-    // 라디오 버튼 스타일링
-    container.querySelectorAll('label').forEach(label => {
-      const radio = label.querySelector('input[type="radio"]');
-      radio.addEventListener('change', () => {
-        container.querySelectorAll('label').forEach(l => {
-          l.style.borderColor = '#e1e5e9';
-          l.style.backgroundColor = 'transparent';
-        });
-        if (radio.checked) {
-          label.style.borderColor = '#667eea';
-          label.style.backgroundColor = 'rgba(102, 126, 234, 0.05)';
+    // 콤보박스 스타일링 및 이벤트 처리
+    const selectElement = container.querySelector('#child-select');
+    if (selectElement) {
+      selectElement.addEventListener('change', (e) => {
+        const selectedValue = e.target.value;
+        if (selectedValue) {
+          const selectedChild = this.children.find(child => child.id === selectedValue);
+          if (selectedChild) {
+            this.log(`선택된 자녀: ${selectedChild.name}`);
+          }
         }
       });
-    });
+    }
   }
 
   updateStep(activeStep) {

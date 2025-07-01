@@ -149,6 +149,20 @@ function main() {
     changePathBtn.removeEventListener('click', handleChangePath); // 중복 방지
     changePathBtn.addEventListener('click', handleChangePath);
   };
+
+  // 전체 다운로드 체크박스 이벤트 핸들러
+  const downloadAllCheckbox = document.getElementById('download-all');
+  if (downloadAllCheckbox) {
+    downloadAllCheckbox.addEventListener('change', function() {
+      if (this.checked) {
+        logOutput.innerHTML += '<p>전체 다운로드가 선택되었습니다. 날짜 필터가 설정되어 있어도 전체 범위를 다운로드합니다.</p>';
+        logOutput.scrollTop = logOutput.scrollHeight;
+      } else {
+        logOutput.innerHTML += '<p>날짜 필터 범위만 다운로드합니다.</p>';
+        logOutput.scrollTop = logOutput.scrollHeight;
+      }
+    });
+  }
   
 
   // changePathBtn 핸들러 별도 함수로 정의
@@ -205,11 +219,28 @@ function main() {
       return;
     }
 
-    const size = document.getElementById('size').value;
+    const isDownloadAll = document.getElementById('download-all').checked;
     const type = document.getElementById('type').value;
     const urltype = document.getElementById('urltype').value;
-    const startDate = document.getElementById('start-date').value;
-    const endDate = document.getElementById('end-date').value;
+    
+    // 전체 다운로드 체크 시 날짜 필터 무시, 아니면 날짜 필터 적용
+    let startDate, endDate, size;
+    if (isDownloadAll) {
+      startDate = null;
+      endDate = null;
+      size = 'all';
+      logOutput.innerHTML += '<p>전체 다운로드 모드: 모든 날짜 범위의 모든 콘텐츠를 다운로드합니다.</p>';
+    } else {
+      startDate = document.getElementById('start-date').value || null;
+      endDate = document.getElementById('end-date').value || null;
+      size = 'all'; // 날짜 필터 범위 내에서 전체 다운로드
+      if (startDate || endDate) {
+        logOutput.innerHTML += `<p>날짜 필터 모드: ${startDate || '시작일 제한없음'} ~ ${endDate || '종료일 제한없음'} 범위를 다운로드합니다.</p>`;
+      } else {
+        logOutput.innerHTML += '<p>날짜 필터가 설정되지 않아 전체 범위를 다운로드합니다.</p>';
+      }
+    }
+    logOutput.scrollTop = logOutput.scrollHeight;
 
     // 날짜 유효성 검사
     if (startDate && endDate && new Date(startDate) > new Date(endDate)) {

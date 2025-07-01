@@ -1,6 +1,8 @@
 const express = require('express');
 const path = require('path');
 const cors = require('cors');
+const { exec } = require('child_process');
+const os = require('os');
 const { login, getJson, getID } = require('./downloader');
 
 const app = express();
@@ -118,6 +120,45 @@ app.get('/api/logs', (req, res) => {
 app.delete('/api/logs', (req, res) => {
   serverLog.clear();
   res.json({ success: true, message: '로그가 초기화되었습니다.' });
+});
+
+// 윈도우 탐색기 열기 API
+app.post('/api/open-explorer', (req, res) => {
+  try {
+    const { defaultPath } = req.body;
+    const platform = os.platform();
+    let command;
+    
+    // 기본 경로 설정 (사용자 다운로드 폴더)
+    const targetPath = defaultPath || path.join(os.homedir(), 'Downloads');
+    
+    switch (platform) {
+      case 'win32':
+        command = `explorer "${targetPath}"`;
+        break;
+      case 'darwin':
+        command = `open "${targetPath}"`;
+        break;
+      case 'linux':
+        command = `xdg-open "${targetPath}"`;
+        break;
+      default:
+        return res.json({ success: false, error: '지원하지 않는 운영체제입니다.' });
+    }
+    
+    exec(command, (error) => {
+      if (error) {
+        serverLog.add(`탐색기 열기 실패: ${error.message}`);
+        res.json({ success: false, error: '탐색기를 열 수 없습니다.' });
+      } else {
+        serverLog.add(`탐색기 열림: ${targetPath}`);
+        res.json({ success: true, path: targetPath });
+      }
+    });
+  } catch (error) {
+    serverLog.add(`탐색기 열기 에러: ${error.message}`);
+    res.json({ success: false, error: error.message });
+  }
 });
 
 // 서버 시작

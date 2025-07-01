@@ -636,8 +636,13 @@
                 </div>
                 
                 <div class="form-group">
-                    <label for="size">다운로드 범위</label>
-                    <input id="size" type="text" placeholder="전체 다운로드시 'all' 입력, 또는 페이지 수 입력">
+                    <label for="download-all">다운로드 범위</label>
+                    <div style="margin-top: 10px;">
+                        <label style="display: flex; align-items: center; cursor: pointer; font-weight: normal;">
+                            <input id="download-all" type="checkbox" style="margin-right: 8px; transform: scale(1.2);">
+                            <span>전체 다운로드 (체크하지 않으면 날짜 필터 범위만 다운로드)</span>
+                        </label>
+                    </div>
                 </div>
                 
                 <div class="form-group">
@@ -657,6 +662,19 @@
         </div>
     </div>
     
-    <script src="renderer.js"></script>
+    <script>
+        // 실행 환경에 따라 적절한 renderer 스크립트 로드
+        if (typeof window !== 'undefined' && window.electronAPI) {
+            // Electron 환경
+            const script = document.createElement('script');
+            script.src = 'renderer.js';
+            document.head.appendChild(script);
+        } else {
+            // 웹 브라우저/서버 환경
+            const script = document.createElement('script');
+            script.src = 'renderer-server.js';
+            document.head.appendChild(script);
+        }
+    </script>
 </body>
 </html>
