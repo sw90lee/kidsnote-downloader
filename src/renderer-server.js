@@ -4,6 +4,8 @@ class KidsnoteServerClient {
     this.sessionData = null;
     this.children = [];
     this.downloadPath = '';
+    this.directoryHandle = null; // File System Access API용
+    this.isDownloading = false;
     this.init();
   }
 
@@ -37,11 +39,13 @@ class KidsnoteServerClient {
       loginBtn: document.getElementById('login-btn'),
       nextBtn: document.getElementById('next-btn'),
       changePathBtn: document.getElementById('change-path-btn'),
-      downloadBtn: document.getElementById('download-btn')
+      downloadBtn: document.getElementById('download-btn'),
+      cancelBtn: document.getElementById('cancel-btn')
     };
 
     this.bindEvents();
     this.startLogPolling();
+    this.startDownloadStatusPolling();
     this.log('웹 서버 모드로 실행 중입니다. 로그인을 진행해주세요.');
   }
 
@@ -62,6 +66,11 @@ class KidsnoteServerClient {
     
     // 다운로드 시작 버튼
     this.elements.downloadBtn.addEventListener('click', () => this.handleDownload());
+    
+    // 다운로드 중단 버튼
+    if (this.elements.cancelBtn) {
+      this.elements.cancelBtn.addEventListener('click', () => this.handleCancelDownload());
+    }
     
     // 다운로드 경로 입력 감지
     this.elements.downloadPathInput.addEventListener('input', () => this.updatePathStatus());
@@ -148,50 +157,227 @@ class KidsnoteServerClient {
 
   async handlePathChange() {
     try {
-      // 먼저 탐색기를 열고 현재 경로를 확인
-      const response = await fetch('/api/open-explorer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          defaultPath: this.downloadPath || null 
-        })
-      });
+      this.elements.changePathBtn.disabled = true;
+      this.elements.changePathBtn.textContent = '📂 폴더 선택 중...';
       
-      const result = await response.json();
-      
-      if (result.success) {
-        this.log(`탐색기가 열렸습니다: ${result.path}`);
-        
-        // 탐색기가 열린 후 사용자가 경로를 입력하도록 안내
-        setTimeout(() => {
-          const path = prompt('탐색기에서 원하는 폴더를 확인한 후, 다운로드 경로를 입력하세요:', result.path);
-          if (path) {
-            this.downloadPath = path;
-            this.elements.downloadPathInput.value = path;
-            this.updatePathStatus();
-            this.log(`다운로드 경로가 설정되었습니다: ${path}`);
+      // 최신 브라우저에서 File System Access API 시도
+      if ('showDirectoryPicker' in window) {
+        try {
+          const directoryHandle = await window.showDirectoryPicker();
+
+          console.log('선택된 폴더123123123:', directoryHandle);
+          // // 사용자가 쓰기 권한 허용해야 함
+          // const permission = await directoryHandle.requestPermission({ mode: 'readwrite' });
+          // if (permission !== 'granted') {
+          //   throw new Error('쓰기 권한이 거부되었습니다.');
+          // }
+
+          
+          // 내부적으로는 directoryHandle을 저장하고 절대 경로 설정
+          this.directoryHandle = directoryHandle;
+          
+          // 서버에 directoryHandle 정보 전송하여 실제 경로 획득
+          try {
+            const response = await fetch('/api/resolve-directory', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                directoryName: directoryHandle.name,
+                kind: directoryHandle.kind 
+              })
+            });
+            
+            const result = await response.json();
+            if (result.success && result.resolvedPath) {
+              this.downloadPath = result.resolvedPath;
+            } else {
+              // 기본 다운로드 폴더 사용
+              this.downloadPath = `./downloads/${directoryHandle.name}`;
+            }
+          } catch (error) {
+            console.log('경로 해결 실패, 기본 경로 사용:', error);
+            this.downloadPath = `./downloads/${directoryHandle.name}`;
           }
-        }, 1000);
-      } else {
-        this.log(`탐색기 열기 실패: ${result.error}`);
-        // 탐색기 열기가 실패한 경우 기존 방식으로 진행
-        const path = prompt('다운로드 경로를 입력하세요:', this.downloadPath || '');
-        if (path) {
-          this.downloadPath = path;
-          this.elements.downloadPathInput.value = path;
+          
+          // 화면에는 간단히 표시
+          this.elements.downloadPathInput.value = `선택된 폴더: ${directoryHandle.name}`;
           this.updatePathStatus();
+          this.log(`다운로드 폴더가 선택되었습니다: ${directoryHandle.name}`);
+          this.log(`절대 경로: ${this.downloadPath}`);
+          this.log('실제 다운로드는 해당 절대 경로에 저장됩니다.');
+          return;
+        } catch (fsError) {
+          this.log('폴더 선택이 취소되었거나 실패했습니다. 직접 입력 방법을 사용합니다.');
         }
       }
+      
+      // webkitdirectory가 실패하는 경우가 많으므로 직접 입력 방식 사용
+      this.log('브라우저 환경에서는 직접 경로를 입력해주세요.');
+      
+      // 직접 입력 프롬프트
+      const path = prompt(
+        '다운로드 경로를 입력하세요:\n\n예시:\n- C:\\Downloads\\KidsnoteFiles\n- D:\\MyFiles\\Kidsnote\n- ./downloads\n\n경로:', 
+        this.downloadPath || 'C:\\Downloads\\KidsnoteFiles'
+      );
+      
+      if (path && path.trim()) {
+        // 절대 경로로 저장
+        this.downloadPath = path.trim();
+        this.directoryHandle = null; // 직접 입력시에는 handle 없음
+        
+        // 화면에는 경로 숨기고 간단히 표시
+        const pathParts = path.trim().split(/[\/\\]/);
+        const folderName = pathParts[pathParts.length - 1] || 'root';
+        this.elements.downloadPathInput.value = `설정된 폴더: ${folderName}`;
+        
+        this.updatePathStatus();
+        this.log(`다운로드 경로가 설정되었습니다: ${folderName}`);
+        this.log(`실제 다운로드는 지정한 절대 경로에 저장됩니다.`);
+        return; // 성공적으로 설정되면 여기서 리턴
+      } else {
+        this.log('경로 설정이 취소되었습니다.');
+        return;
+      }
+      
     } catch (error) {
-      this.log(`경로 변경 오류: ${error.message}`);
-      // 오류 발생 시 기존 방식으로 진행
-      const path = prompt('다운로드 경로를 입력하세요:', this.downloadPath || '');
+      this.log(`폴더 선택 오류: ${error.message}`);
+      // 오류 시 직접 입력
+      const path = prompt('다운로드 경로를 직접 입력하세요:', this.downloadPath || '');
       if (path) {
         this.downloadPath = path;
         this.elements.downloadPathInput.value = path;
         this.updatePathStatus();
       }
+    } finally {
+      this.elements.changePathBtn.disabled = false;
+      this.elements.changePathBtn.textContent = '📂 경로 변경';
     }
+  }
+
+  showPathSelectionModal(suggestedPaths, message, instructions) {
+    // 모달 생성
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    `;
+
+    const modalContent = document.createElement('div');
+    modalContent.style.cssText = `
+      background: white;
+      padding: 30px;
+      border-radius: 15px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+      max-width: 600px;
+      width: 90%;
+      max-height: 80%;
+      overflow-y: auto;
+    `;
+
+    modalContent.innerHTML = `
+      <h3 style="margin-top: 0; color: #333; margin-bottom: 15px;">📂 다운로드 경로 선택</h3>
+      <p style="color: #666; margin-bottom: 20px; line-height: 1.5;">${message}</p>
+      <p style="color: #444; margin-bottom: 20px; font-weight: 500;">${instructions}</p>
+      
+      <div style="margin-bottom: 20px;">
+        <label style="display: block; margin-bottom: 10px; font-weight: 500; color: #555;">제안된 경로:</label>
+        <div id="path-suggestions" style="margin-bottom: 15px;"></div>
+      </div>
+      
+      <div style="margin-bottom: 20px;">
+        <label style="display: block; margin-bottom: 8px; font-weight: 500; color: #555;">직접 입력:</label>
+        <input type="text" id="custom-path" placeholder="경로를 직접 입력하세요" 
+               style="width: 100%; padding: 12px; border: 2px solid #e1e5e9; border-radius: 8px; font-size: 16px;"
+               value="${this.downloadPath || ''}">
+      </div>
+      
+      <div style="display: flex; gap: 10px; justify-content: flex-end;">
+        <button id="cancel-path" style="padding: 12px 20px; border: 2px solid #ddd; background: white; color: #666; border-radius: 8px; cursor: pointer;">취소</button>
+        <button id="confirm-path" style="padding: 12px 20px; border: none; background: linear-gradient(135deg, #667eea, #764ba2); color: white; border-radius: 8px; cursor: pointer;">확인</button>
+      </div>
+    `;
+
+    modal.appendChild(modalContent);
+    document.body.appendChild(modal);
+
+    // 제안된 경로 버튼 생성
+    const suggestionsContainer = modalContent.querySelector('#path-suggestions');
+    suggestedPaths.forEach(path => {
+      const pathBtn = document.createElement('button');
+      pathBtn.textContent = path;
+      pathBtn.style.cssText = `
+        display: block;
+        width: 100%;
+        padding: 10px 15px;
+        margin-bottom: 8px;
+        border: 2px solid #e1e5e9;
+        background: #f8f9fa;
+        color: #333;
+        border-radius: 8px;
+        cursor: pointer;
+        text-align: left;
+        transition: all 0.2s ease;
+      `;
+      
+      pathBtn.addEventListener('click', () => {
+        modalContent.querySelector('#custom-path').value = path;
+      });
+      
+      pathBtn.addEventListener('mouseenter', () => {
+        pathBtn.style.background = '#e9ecef';
+        pathBtn.style.borderColor = '#667eea';
+      });
+      
+      pathBtn.addEventListener('mouseleave', () => {
+        pathBtn.style.background = '#f8f9fa';
+        pathBtn.style.borderColor = '#e1e5e9';
+      });
+      
+      suggestionsContainer.appendChild(pathBtn);
+    });
+
+    // 이벤트 핸들러
+    modalContent.querySelector('#cancel-path').addEventListener('click', () => {
+      document.body.removeChild(modal);
+    });
+
+    modalContent.querySelector('#confirm-path').addEventListener('click', () => {
+      const selectedPath = modalContent.querySelector('#custom-path').value.trim();
+      if (selectedPath) {
+        this.downloadPath = selectedPath;
+        this.elements.downloadPathInput.value = selectedPath;
+        this.updatePathStatus();
+        this.log(`다운로드 경로가 설정되었습니다: ${selectedPath}`);
+      }
+      document.body.removeChild(modal);
+    });
+
+    // Enter 키로 확인
+    modalContent.querySelector('#custom-path').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        modalContent.querySelector('#confirm-path').click();
+      }
+    });
+
+    // 배경 클릭으로 닫기
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        document.body.removeChild(modal);
+      }
+    });
+
+    // 첫 번째 입력 필드에 포커스
+    setTimeout(() => {
+      modalContent.querySelector('#custom-path').focus();
+    }, 100);
   }
 
   updatePathStatus() {
@@ -251,8 +437,7 @@ class KidsnoteServerClient {
       }
     }
 
-    this.elements.downloadBtn.disabled = true;
-    this.elements.downloadBtn.textContent = '다운로드 중...';
+    this.setDownloadingState(true);
 
     try {
       const response = await fetch('/api/download', {
@@ -281,8 +466,55 @@ class KidsnoteServerClient {
     } catch (error) {
       this.log(`다운로드 오류: ${error.message}`);
     } finally {
+      this.setDownloadingState(false);
+    }
+  }
+
+  async handleCancelDownload() {
+    try {
+      this.elements.cancelBtn.disabled = true;
+      this.elements.cancelBtn.textContent = '중단 중...';
+      
+      const response = await fetch('/api/cancel-download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        this.log('다운로드가 중단되었습니다.');
+      } else {
+        this.log(`다운로드 중단 실패: ${result.error}`);
+      }
+    } catch (error) {
+      this.log(`다운로드 중단 오류: ${error.message}`);
+    } finally {
+      this.setDownloadingState(false);
+    }
+  }
+
+  setDownloadingState(downloading) {
+    this.isDownloading = downloading;
+    
+    if (downloading) {
+      this.elements.downloadBtn.disabled = true;
+      this.elements.downloadBtn.textContent = '다운로드 중...';
+      
+      if (this.elements.cancelBtn) {
+        this.elements.cancelBtn.style.display = 'inline-block';
+        this.elements.cancelBtn.disabled = false;
+        this.elements.cancelBtn.textContent = '🛑 다운로드 중단';
+      }
+    } else {
       this.elements.downloadBtn.disabled = false;
       this.elements.downloadBtn.textContent = '⬇️ 다운로드 시작';
+      
+      if (this.elements.cancelBtn) {
+        this.elements.cancelBtn.style.display = 'none';
+        this.elements.cancelBtn.disabled = false;
+        this.elements.cancelBtn.textContent = '🛑 다운로드 중단';
+      }
     }
   }
 
@@ -388,6 +620,23 @@ class KidsnoteServerClient {
         // 폴링 에러는 무시 (서버가 아직 시작되지 않았을 수 있음)
       }
     }, 1000);
+  }
+
+  // 다운로드 상태 폴링
+  startDownloadStatusPolling() {
+    setInterval(async () => {
+      try {
+        const response = await fetch('/api/download-status');
+        const data = await response.json();
+        
+        // 서버의 다운로드 상태와 클라이언트 상태가 다른 경우 동기화
+        if (data.isDownloading !== this.isDownloading) {
+          this.setDownloadingState(data.isDownloading);
+        }
+      } catch (error) {
+        // 폴링 에러는 무시
+      }
+    }, 2000);
   }
 }
 

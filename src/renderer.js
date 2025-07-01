@@ -11,11 +11,13 @@ function main() {
   const loginBtn = document.getElementById('login-btn');
   const nextBtn = document.getElementById('next-btn');
   const downloadBtn = document.getElementById('download-btn');
+  const cancelBtn = document.getElementById('cancel-btn');
   const logOutput = document.getElementById('log-output');
   const pathStatus = document.getElementById('path-status');
   const changePathBtn = document.getElementById('change-path-btn');
   let sessionID;
   let downloadPath = '';
+  let isDownloading = false;
   
   try {
     downloadPath = window.path.join(window.os.homedir(), 'Downloads');
@@ -169,12 +171,18 @@ function main() {
   async function handleChangePath() {
     console.log('Change path button clicked');
     try {
+      changePathBtn.disabled = true;
+      changePathBtn.textContent = '📂 폴더 선택 중...';
+      
       console.log('Calling window.electronAPI.selectDownloadPath');
-      const newPath = await window.electronAPI.selectDownloadPath();
-      console.log('Selected path:', newPath);
-      if (newPath) {
-        downloadPath = newPath;
-        downloadPathInput.value = downloadPath;
+      const result = await window.electronAPI.selectDownloadPath();
+      console.log('Selected path result:', result);
+      
+      if (result.success && result.path) {
+        downloadPath = result.path;
+        if (downloadPathInput) {
+          downloadPathInput.value = downloadPath;
+        }
         console.log('downloadPath updated to:', downloadPath);
         logOutput.innerHTML += `<p>다운로드 경로가 ${downloadPath}로 설정되었습니다.</p>`;
         if (pathStatus) {
@@ -184,14 +192,17 @@ function main() {
         }
         logOutput.scrollTop = logOutput.scrollHeight;
       } else {
-        console.log('Path selection canceled');
-        logOutput.innerHTML += '<p>경로 선택이 취소되었습니다.</p>';
+        console.log('Path selection failed or canceled:', result.error);
+        logOutput.innerHTML += `<p>폴더 선택 실패: ${result.error || '폴더 선택이 취소되었습니다.'}</p>`;
         logOutput.scrollTop = logOutput.scrollHeight;
       }
     } catch (error) {
       console.error('Error changing download path:', error);
       logOutput.innerHTML += `<p>경로 변경 오류: ${error.message}</p>`;
       logOutput.scrollTop = logOutput.scrollHeight;
+    } finally {
+      changePathBtn.disabled = false;
+      changePathBtn.textContent = '📂 경로 변경';
     }
   }
 
@@ -202,6 +213,53 @@ function main() {
     return str.replace(/[<>:"/\\|?*]/g, '');
   }
 
+
+  // 다운로드 상태 설정 함수
+  function setDownloadingState(downloading) {
+    isDownloading = downloading;
+    
+    if (downloading) {
+      downloadBtn.disabled = true;
+      downloadBtn.textContent = '⬇️ 다운로드 중...';
+      
+      if (cancelBtn) {
+        cancelBtn.style.display = 'inline-block';
+        cancelBtn.disabled = false;
+        cancelBtn.textContent = '🛑 다운로드 중단';
+      }
+    } else {
+      downloadBtn.disabled = false;
+      downloadBtn.textContent = '⬇️ 다운로드 시작';
+      
+      if (cancelBtn) {
+        cancelBtn.style.display = 'none';
+        cancelBtn.disabled = false;
+        cancelBtn.textContent = '🛑 다운로드 중단';
+      }
+    }
+  }
+
+  // 다운로드 중단 핸들러
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', async () => {
+      try {
+        cancelBtn.disabled = true;
+        cancelBtn.textContent = '🛑 중단 중...';
+        
+        const result = await window.electronAPI.cancelDownload();
+        
+        if (result.success) {
+          logOutput.innerHTML += '<p>다운로드가 중단되었습니다.</p>';
+        } else {
+          logOutput.innerHTML += `<p>다운로드 중단 실패: ${result.error}</p>`;
+        }
+        logOutput.scrollTop = logOutput.scrollHeight;
+      } catch (error) {
+        logOutput.innerHTML += `<p>다운로드 중단 오류: ${error.message}</p>`;
+        logOutput.scrollTop = logOutput.scrollHeight;
+      }
+    });
+  }
 
   downloadBtn.addEventListener('click', async () => {
     console.log('Download button clicked');
@@ -256,29 +314,42 @@ function main() {
     logOutput.innerHTML += `<p>${downloadMessage}</p>`;
     logOutput.scrollTop = logOutput.scrollHeight;
 
-    for (const childId of selectedChildren) {
-      try {
-        await window.electronAPI.download({
-          id: childId,
-          session: sessionID,
-          type,
-          size,
-          index: 1,
-          urltype,
-          downloadPath,
-          startDate: startDate || null,
-          endDate: endDate || null
-        });
-      } catch (error) {
-        console.error('Download error for child', childId, ':', error);
-        logOutput.innerHTML += `<p>다운로드 오류 (자녀 ID: ${childId}): ${error.message}</p>`;
+    setDownloadingState(true);
+
+    try {
+      for (const childId of selectedChildren) {
+        try {
+          const result = await window.electronAPI.download({
+            id: childId,
+            session: sessionID,
+            type,
+            size,
+            index: 1,
+            urltype,
+            downloadPath,
+            startDate: startDate || null,
+            endDate: endDate || null
+          });
+          
+          if (!result.success) {
+            logOutput.innerHTML += `<p>다운로드 실패 (자녀 ID: ${childId}): ${result.error}</p>`;
+            logOutput.scrollTop = logOutput.scrollHeight;
+          }
+        } catch (error) {
+          console.error('Download error for child', childId, ':', error);
+          logOutput.innerHTML += `<p>다운로드 오류 (자녀 ID: ${childId}): ${error.message}</p>`;
+          logOutput.scrollTop = logOutput.scrollHeight;
+        }
+      }
+      
+      // 전체 다운로드 완료 메시지
+      if (isDownloading) {
+        logOutput.innerHTML += '<p>🎉 모든 다운로드가 완료되었습니다!</p>';
         logOutput.scrollTop = logOutput.scrollHeight;
       }
+    } finally {
+      setDownloadingState(false);
     }
-    
-    // 전체 다운로드 완료 메시지
-    logOutput.innerHTML += '<p>🎉 모든 다운로드가 완료되었습니다!</p>';
-    logOutput.scrollTop = logOutput.scrollHeight;
   });
 
   window.electronAPI.onLog((message) => {
@@ -286,6 +357,11 @@ function main() {
     logEntry.textContent = message;
     logOutput.appendChild(logEntry);
     logOutput.scrollTop = logOutput.scrollHeight;
+  });
+
+  // 다운로드 상태 변경 이벤트 리스너
+  window.electronAPI.onDownloadStatusChanged((data) => {
+    setDownloadingState(data.isDownloading);
   });
 }
 

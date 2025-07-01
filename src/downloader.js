@@ -45,8 +45,24 @@ const makeRequest = (options, data = null, retries = 5, retryDelay = 5000) => {
 // 파일 다운로드 함수
 const downloadImage = (url, extension, downloadPath) => {
   return new Promise((resolve, reject) => {
+    // 다운로드 경로 디렉토리 확인 및 생성
+    if (!fs.existsSync(downloadPath)) {
+      try {
+        fs.mkdirSync(downloadPath, { recursive: true });
+      } catch (mkdirError) {
+        reject(new Error(`Failed to create download directory: ${mkdirError.message}`));
+        return;
+      }
+    }
+
     const tempFilename = path.join(downloadPath, `temp-${Math.random().toString(36).substring(2, 15)}-${Date.now()}${extension}`);
     const fileStream = fs.createWriteStream(tempFilename);
+    
+    fileStream.on('error', (streamError) => {
+      fs.unlink(tempFilename, () => {});
+      reject(new Error(`Failed to create write stream: ${streamError.message}`));
+    });
+
     const request = https.get(url, (response) => {
       if (response.statusCode === 200) {
         response.pipe(fileStream);
@@ -74,8 +90,20 @@ const downloadImage = (url, extension, downloadPath) => {
 // 이미지 및 동영상 처리 함수
 const processImage = async (url, extension, finalFilename, downloadPath, retries = 5) => {
   try {
+    // 다운로드 경로 디렉토리 확인 및 생성
+    if (!fs.existsSync(downloadPath)) {
+      fs.mkdirSync(downloadPath, { recursive: true });
+    }
+
     const tempFilename = await downloadImage(url, extension, downloadPath);
     const finalPath = path.join(downloadPath, finalFilename);
+    
+    // 최종 파일 경로의 디렉토리도 확인
+    const finalDir = path.dirname(finalPath);
+    if (!fs.existsSync(finalDir)) {
+      fs.mkdirSync(finalDir, { recursive: true });
+    }
+    
     await renameAsync(tempFilename, finalPath);
     // 로그 출력하지 않고 조용히 처리
   } catch (error) {
@@ -201,6 +229,19 @@ const processEntries = async (parsedData, type, urltype, win, downloadPath, star
 
 // 자녀 데이터 가져오기 함수
 const getJson = async (id, session, type, size, index, urltype, win, downloadPath, startDate = null, endDate = null) => {
+  // 첫 번째 호출(index === 1)인 경우 다운로드 경로 확인 및 생성
+  if (index === 1) {
+    try {
+      if (!fs.existsSync(downloadPath)) {
+        fs.mkdirSync(downloadPath, { recursive: true });
+        logToWindow(win, `다운로드 폴더를 생성했습니다: ${downloadPath}`);
+      }
+    } catch (error) {
+      logToWindow(win, `다운로드 폴더 생성 실패: ${error.message}`);
+      throw new Error(`Failed to create download directory: ${error.message}`);
+    }
+  }
+
   const downloadSize = size === 'all' ? 9999 * index : size;
   const url = `/api/v1_2/children/${id}/${urltype === '1' ? 'reports' : 'albums'}/?page_size=${downloadSize}&tz=Asia%2FSeoul&child=${id}`;
   const options = {
@@ -228,7 +269,7 @@ const getJson = async (id, session, type, size, index, urltype, win, downloadPat
 
     // 첫 번째 호출(index === 1)인 경우 다운로드 시작 로그 출력
     if (index === 1) {
-      let downloadMessage = `다운로드 시작 - 자녀 ID: ${id}`;
+      let downloadMessage = `다운로드 시작 - 자녀 ID: ${id}, 경로: ${downloadPath}`;
       if (startDate || endDate) {
         downloadMessage += ` | 날짜 필터: ${startDate || '제한없음'} ~ ${endDate || '제한없음'}`;
       }

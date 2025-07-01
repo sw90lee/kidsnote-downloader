@@ -3,6 +3,8 @@ const path = require('path');
 const { login, getJson, getID, processEntries } = require('./downloader');
 
 let mainWindow; // 전역 변수로 정의
+let downloadProcess = null; // 다운로드 프로세스 추적
+let isDownloading = false; // 다운로드 상태 추적
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -47,9 +49,36 @@ app.whenReady().then(() => {
 
   ipcMain.handle('download', async (event, { id, session, type, size, index, urltype, downloadPath, startDate, endDate}) => {
     try {
-      await getJson(id, session, type, size, index, urltype, mainWindow, downloadPath, startDate, endDate);
-      return { success: true };
+      if (isDownloading) {
+        return { success: false, error: '이미 다운로드가 진행 중입니다.' };
+      }
+      
+      isDownloading = true;
+      mainWindow.webContents.send('download-status-changed', { isDownloading: true });
+      
+      try {
+        await getJson(id, session, type, size, index, urltype, mainWindow, downloadPath, startDate, endDate);
+        
+        if (isDownloading) { // 중단되지 않은 경우에만
+          return { success: true };
+        } else {
+          return { success: false, error: '다운로드가 중단되었습니다.' };
+        }
+      } catch (error) {
+        if (isDownloading) {
+          return { success: false, error: error.message };
+        } else {
+          return { success: false, error: '다운로드가 중단되었습니다.' };
+        }
+      } finally {
+        isDownloading = false;
+        downloadProcess = null;
+        mainWindow.webContents.send('download-status-changed', { isDownloading: false });
+      }
     } catch (error) {
+      isDownloading = false;
+      downloadProcess = null;
+      mainWindow.webContents.send('download-status-changed', { isDownloading: false });
       return { success: false, error: error.message };
     }
   });
@@ -58,18 +87,46 @@ app.whenReady().then(() => {
     console.log('IPC select-download-path called'); // IPC 호출 확인
     try {
       const result = await dialog.showOpenDialog(mainWindow, {
-        properties: ['openDirectory']
+        properties: ['openDirectory'],
+        title: '다운로드 폴더를 선택하세요'
       });
 
       console.log('Dialog result:', JSON.stringify(result, null, 2));
       if (!result.canceled && result.filePaths.length > 0) {
-        return result.filePaths[0];
+        return { success: true, path: result.filePaths[0] };
       }
-      return null;
+      return { success: false, error: '폴더 선택이 취소되었습니다.' };
     } catch (error) {
       console.error('Error in select-download-path:', error);
-      throw error;
+      return { success: false, error: error.message };
     }
+  });
+
+  // 다운로드 중단 핸들러
+  ipcMain.handle('cancel-download', async (event) => {
+    try {
+      if (!isDownloading) {
+        return { success: false, error: '진행 중인 다운로드가 없습니다.' };
+      }
+      
+      if (downloadProcess) {
+        downloadProcess.kill('SIGTERM');
+        downloadProcess = null;
+      }
+      
+      isDownloading = false;
+      mainWindow.webContents.send('download-status-changed', { isDownloading: false });
+      mainWindow.webContents.send('log', '다운로드가 사용자에 의해 중단되었습니다.');
+      
+      return { success: true, message: '다운로드가 중단되었습니다.' };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  // 다운로드 상태 확인 핸들러
+  ipcMain.handle('get-download-status', async (event) => {
+    return { isDownloading };
   });
 });
 

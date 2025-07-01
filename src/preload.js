@@ -43,7 +43,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     console.log('electronAPI.selectDownloadPath called');
     return ipcRenderer.invoke('select-download-path');
   },
-  onLog: (callback) => ipcRenderer.on('log', (event, message) => callback(message))
+  cancelDownload: () => {
+    console.log('electronAPI.cancelDownload called');
+    return ipcRenderer.invoke('cancel-download');
+  },
+  getDownloadStatus: () => {
+    console.log('electronAPI.getDownloadStatus called');
+    return ipcRenderer.invoke('get-download-status');
+  },
+  onLog: (callback) => ipcRenderer.on('log', (event, message) => callback(message)),
+  onDownloadStatusChanged: (callback) => ipcRenderer.on('download-status-changed', (event, data) => callback(data))
 });
 
 // Node.js 모듈들도 노출 (기존 코드에서 사용하고 있음)
